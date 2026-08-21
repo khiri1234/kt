@@ -1,6 +1,0 @@
-# Contains real cheque records (payee names, amounts) — never commit this
-data.json
-
-# OS/editor clutter
-.DS_Store
-Thumbs.db
