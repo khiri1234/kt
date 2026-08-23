@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADCB Cheque Printer</title>
+<style>
+  :root{
+    --ink:#1a2b4a;
+    --ink-soft:#3c4f6e;
+    --accent:#8c1d2c;
+    --panel:#ffffff;
+    --bg:#eef1f6;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 24px 16px 60px;
+  }
+  h1{ text-align:center; font-size:1.3rem; margin:0 0 4px; }
+  .subtitle{ text-align:center; color:#6b7688; font-size:0.85rem; margin-bottom:24px; }
+  .layout{
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px){ .layout{ grid-template-columns: 1fr; } }
+  .card{
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(20,30,60,0.08), 0 8px 24px rgba(20,30,60,0.06);
+  }
+  h2{ font-size:0.85rem; text-transform:uppercase; letter-spacing:0.06em; color:#6b7688; margin: 18px 0 8px; }
+  h2:first-child{ margin-top:0; }
+  label{ display:block; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.06em; color:#6b7688; margin: 10px 0 4px; }
+  input{
+    width:100%; padding: 8px 9px; border: 1px solid #d6dbe4; border-radius: 6px;
+    font-size: 0.92rem; font-family: inherit; color: var(--ink); background:#fbfcfe;
+  }
+  input:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(140,29,44,0.1); }
+  .amount-words-preview{ margin-top:5px; font-size:0.75rem; color:#a9852f; font-style:italic; min-height:14px; }
+  .field-adjust{
+    display:grid; grid-template-columns: 1fr 60px 60px; gap:6px; align-items:center;
+    margin-bottom:6px; font-size:0.8rem;
+  }
+  .field-adjust span{ color: var(--ink-soft); }
+  .field-adjust input{ padding:5px 6px; font-size:0.82rem; text-align:center; }
+  .col-heads{
+    display:grid; grid-template-columns: 1fr 60px 60px; gap:6px;
+    font-size:0.65rem; text-transform:uppercase; letter-spacing:0.05em; color:#9aa3b5; margin-bottom:4px;
+  }
+  .col-heads span:not(:first-child){ text-align:center; }
+  .row2{ display:flex; gap:8px; }
+  .row2 > div{ flex:1; }
+  .actions{ margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; }
+  button{
+    flex:1; min-width:120px; padding:10px 12px; border-radius:6px; border:none;
+    font-size:0.85rem; font-weight:600; cursor:pointer;
+  }
+  .btn-print{ background: var(--accent); color:#fff; }
+  .btn-print:hover{ background:#701521; }
+  .btn-secondary{ background:#eef0f4; color: var(--ink-soft); }
+  .btn-secondary:hover{ background:#e2e5ec; }
+  .hint{ font-size:0.72rem; color:#8891a1; margin-top:10px; line-height:1.5; }
+
+  /* ---- Archive ---- */
+  .archive-section{
+    max-width: 1180px;
+    margin: 20px auto 0;
+  }
+  .archive-card{ padding:20px; }
+  .archive-header{
+    display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    margin-bottom:14px;
+  }
+  .archive-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .archive-actions button{ flex:none; min-width:auto; padding:8px 12px; font-size:0.78rem; }
+  .archive-table{
+    width:100%; border-collapse:collapse; font-size:0.85rem;
+  }
+  .archive-table th, .archive-table td{
+    text-align:left; padding:8px 10px; border-bottom:1px solid #e6e9f0;
+  }
+  .archive-table th{
+    font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; color:#8891a1;
+  }
+  .archive-table td.amount-cell, .archive-table th:nth-child(5){ text-align:right; }
+  .archive-table .delete-row{
+    background:none; border:none; color:#b0374a; cursor:pointer; font-size:0.75rem; padding:2px 6px; flex:none; min-width:auto;
+  }
+  #archiveEmptyHint{ display:none; margin-top:10px; }
+
+  .statement-printout{ display:none; }
+  .statement-printout h2{ font-family: Georgia, serif; color:#1a2b4a; }
+  .statement-printout .stmt-meta{ font-size:0.8rem; color:#3c4f6e; margin-bottom:14px; }
+  .statement-printout table{ width:100%; border-collapse:collapse; font-size:0.85rem; }
+  .statement-printout th, .statement-printout td{ text-align:left; padding:6px 8px; border-bottom:1px solid #ccc; }
+  .statement-printout th:last-child, .statement-printout td:last-child{ text-align:right; }
+  .statement-printout tfoot td{ font-weight:700; border-top:2px solid #333; }
+
+  body.printing-statement .layout,
+  body.printing-statement h1,
+  body.printing-statement .subtitle,
+  body.printing-statement .archive-section{
+    display:none !important;
+  }
+  body.printing-statement .statement-printout{ display:block !important; }
+
+  /* ---- Cheque preview ---- */
+  .preview-outer{
+    display:flex; align-items:flex-start; justify-content:center;
+    padding: 10px;
+  }
+  #chequeScaler{
+    transform-origin: top left;
+  }
+  .cheque{
+    position: relative;
+    background: #fff;
+    border: 1px dashed #b7bfcc;
+    box-shadow: 0 4px 14px rgba(20,30,60,0.12);
+  }
+  .field-text{
+    position:absolute;
+    white-space: nowrap;
+    font-family: 'Courier New', monospace;
+    font-weight:700;
+    color:#000;
+  }
+  .field-label-screen{
+    position:absolute;
+    font-size: 2.2mm;
+    color:#8c1d2c;
+    font-family: Arial, sans-serif;
+    top:-4mm;
+    left:0;
+    white-space:nowrap;
+  }
+
+  @media print{
+    body{ background:#fff; padding:0; margin:0; }
+    h1, .subtitle, .card, .actions{ display:none; }
+    .layout{ display:block; }
+    .preview-outer{ padding:0; justify-content:flex-start; }
+    #chequeScaler{ transform: none !important; }
+    .cheque{ border:none; box-shadow:none; }
+    .field-label-screen{ display:none; }
+    #lockScreen{ display:none !important; }
+  }
+
+  /* ---- Lock screen ---- */
+  #lockScreen{
+    position:fixed; inset:0; z-index:9999;
+    background: var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  #lockScreen .lock-card{
+    background:#fff; border-radius:10px; padding:28px 26px;
+    max-width:300px; width:100%; text-align:center;
+    box-shadow: 0 8px 24px rgba(20,30,60,0.15);
+  }
+  #lockScreen h2{ font-size:1.05rem; margin:0 0 14px; color:var(--ink); }
+  #lockScreen input{ text-align:center; font-size:1.1rem; letter-spacing:0.3em; }
+  #lockScreen button{
+    width:100%; margin-top:12px; padding:10px; border:none; border-radius:6px;
+    background:var(--accent); color:#fff; font-weight:600; font-size:0.9rem; cursor:pointer;
+  }
+  #lockScreen button:hover{ background:#701521; }
+  #lockError{ color:#b0374a; font-size:0.78rem; margin-top:8px; display:none; }
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <div id="lockScreen">
+    <div class="lock-card">
+      <h2>Enter passcode to continue</h2>
+      <input type="password" id="lockPasscode" placeholder="••••" inputmode="numeric" maxlength="12" autocomplete="off">
+      <div id="lockError">Incorrect passcode — try again.</div>
+      <button id="unlockBtn">Unlock</button>
+    </div>
+  </div>
+
+  <h1>ADCB Cheque Printer</h1>
+  <div class="subtitle">Feed your ADCB cheque into the printer and print just the payee, amount, and date</div>
+
+  <div class="layout">
+
+    <div class="card">
+      <h2>Cheque details</h2>
+
+      <label for="chequeNo">Cheque number</label>
+      <input id="chequeNo" placeholder="e.g. 000123">
+
+      <label for="payee">Pay to the order of</label>
+      <input id="payee" placeholder="Payee full name" list="payeeSuggestions" autocomplete="off">
+      <datalist id="payeeSuggestions"></datalist>
+
+      <label for="amount">Amount (AED)</label>
+      <input id="amount" placeholder="0.00" inputmode="decimal">
+      <div class="amount-words-preview" id="wordsPreview"></div>
+
+      <label class="print-mode" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:0.75rem; color:#6b7688; margin-top:8px;">
+        <input type="checkbox" id="tamperGuard" style="width:auto;" checked>
+        Add tamper-guard characters around amounts (recommended)
+      </label>
+      <div class="row2" style="margin-top:6px;" id="guardCharRow">
+        <div>
+          <label for="guardChar" style="margin-top:0;">Guard characters</label>
+          <input id="guardChar" value="***" maxlength="6">
+        </div>
+      </div>
+
+      <label for="dateInput">Date</label>
+      <input id="dateInput" type="date">
+
+      <label for="invoiceNo">Invoice number(s)</label>
+      <input id="invoiceNo" placeholder="e.g. INV-1042 or INV-1042, INV-1043">
+
+      <h2>Cheque size (mm)</h2>
+      <div class="row2">
+        <div>
+          <label for="chqW">Width</label>
+          <input id="chqW" type="number" value="200" step="1">
+        </div>
+        <div>
+          <label for="chqH">Height</label>
+          <input id="chqH" type="number" value="100" step="1">
+        </div>
+      </div>
+
+      <h2>Field position (mm from top-left)</h2>
+      <div class="col-heads"><span>Field</span><span>Left</span><span>Top</span></div>
+      <div class="field-adjust"><span>Date</span><input id="dateX" type="number" value="155" step="0.5"><input id="dateY" type="number" value="12" step="0.5"></div>
+      <div class="field-adjust"><span>Payee</span><input id="payeeX" type="number" value="23" step="0.5"><input id="payeeY" type="number" value="31" step="0.5"></div>
+      <div class="field-adjust"><span>Amount (words)</span><input id="wordsX" type="number" value="20" step="0.5"><input id="wordsY" type="number" value="42" step="0.5"></div>
+      <div class="field-adjust"><span>Amount (figures)</span><input id="digitsX" type="number" value="160" step="0.5"><input id="digitsY" type="number" value="50" step="0.5"></div>
+
+      <label class="print-mode" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:0.75rem; color:#6b7688; margin-top:10px;">
+        <input type="checkbox" id="printInvoice" style="width:auto;">
+        Also print invoice number on the cheque (memo area)
+      </label>
+      <div class="field-adjust" id="invoicePositionRow" style="display:none; margin-top:6px;"><span>Invoice no.</span><input id="invoiceX" type="number" value="20" step="0.5"><input id="invoiceY" type="number" value="70" step="0.5"></div>
+
+      <label class="print-mode" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:0.75rem; color:#6b7688; margin-top:10px;">
+        <input type="checkbox" id="printAcPayee" style="width:auto;">
+        Also print "A/C PAYEE ONLY"
+      </label>
+      <div class="field-adjust" id="acPayeePositionRow" style="display:none; margin-top:6px;"><span>A/C Payee Only</span><input id="acPayeeX" type="number" value="10" step="0.5"><input id="acPayeeY" type="number" value="8" step="0.5"></div>
+
+      <label class="print-mode" style="cursor:pointer; display:flex; align-items:center; gap:8px; font-size:0.75rem; color:#6b7688; margin-top:14px;">
+        <input type="checkbox" id="logToArchive" style="width:auto;" checked>
+        Add this cheque to my archive when I print
+      </label>
+
+      <div class="actions">
+        <button class="btn-print" id="printBtn">Print cheque</button>
+        <button class="btn-secondary" id="resetBtn">Reset positions</button>
+      </div>
+      <div class="actions">
+        <button class="btn-secondary" id="viewArchiveBtn">View archive / statement</button>
+      </div>
+      <div class="hint" id="syncStatus" style="font-weight:600;"></div>
+      <div class="row2" style="margin-top:6px;">
+        <div style="flex:1;">
+          <input id="syncCode" placeholder="Sync code (same on every device)">
+        </div>
+        <button class="btn-secondary" id="connectSyncBtn" style="flex:none; min-width:auto; padding:8px 14px;">Connect</button>
+      </div>
+      <div class="hint">
+        Tip: print once on plain paper, hold it behind your actual cheque up to a light, and adjust the Left/Top values until the fields line up. Your positions are saved automatically for next time.
+      </div>
+    </div>
+
+    <div class="preview-outer">
+      <div id="chequeScaler">
+        <div class="cheque" id="cheque">
+          <div class="field-text" id="dateOut"><span class="field-label-screen">Date</span></div>
+          <div class="field-text" id="payeeOut"><span class="field-label-screen">Payee</span></div>
+          <div class="field-text" id="wordsOut"><span class="field-label-screen">Amount in words</span></div>
+          <div class="field-text" id="digitsOut"><span class="field-label-screen">Amount in figures</span></div>
+          <div class="field-text" id="invoiceOut" style="display:none;"><span class="field-label-screen">Invoice no.</span></div>
+          <div class="field-text" id="acPayeeOut" style="display:none; font-weight:800; letter-spacing:0.03em;"><span class="field-label-screen">A/C Payee Only</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="archive-section" id="archiveSection" style="display:none;">
+    <div class="card archive-card">
+      <div class="archive-header">
+        <h2 style="margin:0;">Cheque archive</h2>
+        <div class="archive-actions">
+          <button class="btn-secondary" id="printStatementBtn">Print statement</button>
+          <button class="btn-secondary" id="exportCsvBtn">Export CSV</button>
+          <button class="btn-secondary" id="exportJsonBtn">Export backup (.json)</button>
+          <button class="btn-secondary" id="importJsonBtn">Import backup (.json)</button>
+          <input type="file" id="importJsonFile" accept="application/json" style="display:none;">
+          <button class="btn-secondary" id="clearArchiveBtn">Clear archive</button>
+          <button class="btn-secondary" id="closeArchiveBtn">Close</button>
+        </div>
+      </div>
+      <table class="archive-table" id="archiveTable">
+        <thead>
+          <tr><th>Date</th><th>Cheque No.</th><th>Payee</th><th>Invoice No.</th><th>Amount (AED)</th><th></th></tr>
+        </thead>
+        <tbody id="archiveTableBody"></tbody>
+        <tfoot>
+          <tr><td colspan="4" style="text-align:right; font-weight:700;">Total</td><td id="archiveTotal" style="font-weight:700;"></td><td></td></tr>
+        </tfoot>
+      </table>
+      <div class="hint" id="archiveEmptyHint">No cheques logged yet — print a cheque with "Add to my archive" checked to start your record.</div>
+      <div class="hint" style="margin-top:14px; border-top:1px solid #e6e9f0; padding-top:10px;">
+        <strong>Using this on two PCs?</strong> For real-time sync, run the included <code>server.js</code> on one PC and open this page at its network address from both PCs (see README) — the badge above the Print button will show "🟢 Synced" when it's working. Without the server, the archive stays local to this device; use <em>Export backup (.json)</em> / <em>Import backup (.json)</em> to move data between PCs manually — imports merge rather than overwrite.
+      </div>
+    </div>
+  </div>
+
+  <div id="statementPrintout" class="statement-printout"></div>
+
+<script>
+  const ones = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten",
+    "Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen"];
+  const tens = ["","","Twenty","Thirty","Forty","Fifty","Sixty","Seventy","Eighty","Ninety"];
+
+  function tensOnes(n){
+    let s = "";
+    if(n >= 20){ s += tens[Math.floor(n/10)] + " "; n %= 10; }
+    if(n > 0){ s += ones[n] + " "; }
+    return s.trim();
+  }
+
+  function threeDigits(n){
+    // US English: no "and" between hundreds and tens/ones (e.g. "One Hundred Twenty Five")
+    let s = "";
+    if(n >= 100){
+      s += ones[Math.floor(n/100)] + " Hundred ";
+      n %= 100;
+      if(n > 0) s += tensOnes(n) + " ";
+    } else if(n > 0){
+      s += tensOnes(n) + " ";
+    }
+    return s.trim();
+  }
+
+  function numberToWords(num){
+    if(num === 0) return "Zero";
+    const billion = Math.floor(num / 1000000000); num %= 1000000000;
+    const million = Math.floor(num / 1000000); num %= 1000000;
+    const thousand = Math.floor(num / 1000); num %= 1000;
+    const last = num; // 0-999
+
+    let parts = [];
+    if(billion) parts.push(threeDigits(billion) + " Billion");
+    if(million) parts.push(threeDigits(million) + " Million");
+    if(thousand) parts.push(threeDigits(thousand) + " Thousand");
+    if(last) parts.push(threeDigits(last));
+
+    return parts.join(" ").trim().replace(/\s+/g, " ");
+  }
+  function amountToWords(value){
+    if(isNaN(value) || value < 0) return "";
+    const dirhams = Math.floor(value);
+    const fils = Math.round((value - dirhams) * 100);
+    let words = numberToWords(dirhams) + " Dirham" + (dirhams === 1 ? "" : "s");
+    if(fils > 0){ words += " and " + numberToWords(fils) + " Fils"; }
+    return words + " Only";
+  }
+
+  const $ = id => document.getElementById(id);
+  const fieldIds = ["dateX","dateY","payeeX","payeeY","wordsX","wordsY","digitsX","digitsY","invoiceX","invoiceY","acPayeeX","acPayeeY","chqW","chqH"];
+  const DEFAULTS = { dateX:155, dateY:12, payeeX:23, payeeY:31, wordsX:20, wordsY:42, digitsX:160, digitsY:50, invoiceX:20, invoiceY:70, acPayeeX:10, acPayeeY:8, chqW:200, chqH:100 };
+
+  function loadSaved(){
+    try{
+      const saved = JSON.parse(localStorage.getItem("adcbChequeCalibration") || "{}");
+      fieldIds.forEach(id => { if(saved[id] !== undefined) $(id).value = saved[id]; });
+    }catch(e){ /* ignore, use defaults already in HTML */ }
+  }
+  function saveCalibration(){
+    try{
+      const data = {};
+      fieldIds.forEach(id => data[id] = $(id).value);
+      localStorage.setItem("adcbChequeCalibration", JSON.stringify(data));
+    }catch(e){ /* storage unavailable, skip silently */ }
+  }
+
+  function fitScale(){
+    const chqW = parseFloat($("chqW").value) || 200;
+    const container = document.querySelector(".preview-outer");
+    const maxWidthPx = container.clientWidth - 20;
+    const mmToPx = 96 / 25.4; // approx CSS px per mm at 96dpi baseline
+    const chequePxWidth = chqW * mmToPx;
+    const scale = Math.min(1.6, maxWidthPx / chequePxWidth);
+    $("chequeScaler").style.transform = "scale(" + scale + ")";
+  }
+
+  function render(){
+    const chqW = parseFloat($("chqW").value) || 200;
+    const chqH = parseFloat($("chqH").value) || 100;
+    $("cheque").style.width = chqW + "mm";
+    $("cheque").style.height = chqH + "mm";
+
+    const payee = $("payee").value.trim();
+    const amountRaw = $("amount").value.trim();
+    const amountVal = parseFloat(amountRaw);
+    const dateVal = $("dateInput").value;
+
+    const dateOut = $("dateOut");
+    dateOut.style.left = $("dateX").value + "mm";
+    dateOut.style.top = $("dateY").value + "mm";
+    dateOut.style.fontSize = "4mm";
+    let dateText = "";
+    if(dateVal){
+      const [y,m,d] = dateVal.split("-");
+      dateText = d + "/" + m + "/" + y;
+    }
+    dateOut.childNodes[0] ? null : null;
+    dateOut.innerHTML = (dateText || "") + '<span class="field-label-screen">Date</span>';
+
+    const payeeOut = $("payeeOut");
+    payeeOut.style.left = $("payeeX").value + "mm";
+    payeeOut.style.top = $("payeeY").value + "mm";
+    payeeOut.style.fontSize = "4.2mm";
+    payeeOut.innerHTML = (payee || "") + '<span class="field-label-screen">Payee</span>';
+
+    const wordsOut = $("wordsOut");
+    wordsOut.style.left = $("wordsX").value + "mm";
+    wordsOut.style.top = $("wordsY").value + "mm";
+    wordsOut.style.fontSize = "3.6mm";
+    wordsOut.style.maxWidth = (chqW - parseFloat($("wordsX").value) - 45) + "mm";
+    wordsOut.style.whiteSpace = "normal";
+    const guardOn = $("tamperGuard").checked;
+    const guard = $("guardChar").value.trim() || "***";
+    let wordsText = "";
+    if(!isNaN(amountVal) && amountRaw !== ""){
+      wordsText = amountToWords(amountVal);
+      if(guardOn) wordsText = guard + wordsText + guard;
+    }
+    wordsOut.innerHTML = (wordsText || "") + '<span class="field-label-screen">Amount in words</span>';
+
+    const digitsOut = $("digitsOut");
+    digitsOut.style.left = $("digitsX").value + "mm";
+    digitsOut.style.top = $("digitsY").value + "mm";
+    digitsOut.style.fontSize = "4.2mm";
+    let digitsText = "";
+    if(!isNaN(amountVal) && amountRaw !== ""){
+      digitsText = amountVal.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      if(guardOn) digitsText = guard + digitsText + guard;
+    }
+    digitsOut.innerHTML = (digitsText || "") + '<span class="field-label-screen">Amount in figures</span>';
+
+    const invoiceOut = $("invoiceOut");
+    const printInvoice = $("printInvoice").checked;
+    invoiceOut.style.display = printInvoice ? "block" : "none";
+    if(printInvoice){
+      invoiceOut.style.left = $("invoiceX").value + "mm";
+      invoiceOut.style.top = $("invoiceY").value + "mm";
+      invoiceOut.style.fontSize = "3mm";
+      invoiceOut.innerHTML = ($("invoiceNo").value.trim() || "") + '<span class="field-label-screen">Invoice no.</span>';
+    }
+
+    const acPayeeOut = $("acPayeeOut");
+    const printAcPayee = $("printAcPayee").checked;
+    acPayeeOut.style.display = printAcPayee ? "block" : "none";
+    if(printAcPayee){
+      acPayeeOut.style.left = $("acPayeeX").value + "mm";
+      acPayeeOut.style.top = $("acPayeeY").value + "mm";
+      acPayeeOut.style.fontSize = "3.2mm";
+      acPayeeOut.innerHTML = "A/C PAYEE ONLY" + '<span class="field-label-screen">A/C Payee Only</span>';
+    }
+
+    if(!isNaN(amountVal) && amountRaw !== ""){
+      $("wordsPreview").textContent = amountToWords(amountVal);
+    } else {
+      $("wordsPreview").textContent = "";
+    }
+
+    fitScale();
+  }
+
+  document.querySelectorAll("input").forEach(el => {
+    el.addEventListener("input", () => {
+      if(fieldIds.includes(el.id)) saveCalibration();
+      render();
+    });
+  });
+
+  $("printInvoice").addEventListener("change", () => {
+    $("invoicePositionRow").style.display = $("printInvoice").checked ? "grid" : "none";
+    render();
+  });
+
+  $("printAcPayee").addEventListener("change", () => {
+    $("acPayeePositionRow").style.display = $("printAcPayee").checked ? "grid" : "none";
+    render();
+  });
+
+  $("tamperGuard").addEventListener("change", () => {
+    $("guardCharRow").style.display = $("tamperGuard").checked ? "flex" : "none";
+    render();
+  });
+
+  window.addEventListener("resize", fitScale);
+
+  /* ---------------- Firebase sync (optional) ----------------
+     If firebaseConfig below is filled in with your own Firebase project's
+     values, and you and other devices enter the same Sync Code, the
+     archive + payee list sync in real time through the cloud — works
+     from anywhere, no PC needs to stay on. See README for setup.
+     If not configured, falls back to this device's local storage only. */
+  const firebaseConfig = {
+    apiKey: "AIzaSyBuaVIk5dfPubPOct0ilkUrG7Bo6u5db94",
+    authDomain: "adcb-cheque.firebaseapp.com",
+    projectId: "adcb-cheque",
+    storageBucket: "adcb-cheque.firebasestorage.app",
+    messagingSenderId: "114021749191",
+    appId: "1:114021749191:web:dd233f56339e56251949e2"
+  };
+
+  let FIREBASE_MODE = false;
+  let db = null;
+  let unsubscribeSnapshot = null;
+  let syncData = { archive: [], knownPayees: [] };
+
+  function pushSyncData(){
+    if(!FIREBASE_MODE || !db) return;
+    const code = localStorage.getItem("adcbSyncCode");
+    if(!code) return;
+    db.collection("adcbChequeSync").doc(code).set(syncData)
+      .then(() => setSyncStatus("connected"))
+      .catch(() => setSyncStatus("error"));
+  }
+
+  function connectSync(code){
+    code = (code || "").trim();
+    if(!code || !FIREBASE_MODE || !db) return;
+    localStorage.setItem("adcbSyncCode", code);
+    if(unsubscribeSnapshot) unsubscribeSnapshot();
+    setSyncStatus("connecting");
+    unsubscribeSnapshot = db.collection("adcbChequeSync").doc(code).onSnapshot(
+      snap => {
+        const data = snap.exists ? snap.data() : {};
+        syncData.archive = Array.isArray(data.archive) ? data.archive : [];
+        syncData.knownPayees = Array.isArray(data.knownPayees) ? data.knownPayees : [];
+        renderPayeeSuggestions();
+        if($("archiveSection").style.display !== "none") renderArchiveTable();
+        setSyncStatus("connected");
+      },
+      () => setSyncStatus("error")
+    );
+  }
+
+  function initFirebaseSync(){
+    if(firebaseConfig.apiKey === "YOUR_API_KEY_HERE"){
+      setSyncStatus("unconfigured");
+      return;
+    }
+    try{
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+      FIREBASE_MODE = true;
+      const savedCode = localStorage.getItem("adcbSyncCode");
+      if(savedCode){
+        $("syncCode").value = savedCode;
+        connectSync(savedCode);
+      } else {
+        setSyncStatus("needcode");
+      }
+    }catch(e){
+      setSyncStatus("error");
+    }
+  }
+
+  function setSyncStatus(state){
+    const el = $("syncStatus");
+    if(!el) return;
+    if(state === "connected"){
+      el.textContent = "🟢 Synced via cloud — changes appear on other devices within a few seconds.";
+      el.style.color = "#2f7a3d";
+    } else if(state === "connecting"){
+      el.textContent = "🟡 Connecting to sync…";
+      el.style.color = "#a9852f";
+    } else if(state === "error"){
+      el.textContent = "🟠 Can't reach the sync service right now — working from this device's last known data.";
+      el.style.color = "#b0374a";
+    } else if(state === "needcode"){
+      el.textContent = "⚪ Enter a sync code below and click Connect to share data across devices.";
+      el.style.color = "#6b7688";
+    } else {
+      el.textContent = "⚪ Cloud sync not set up yet — this device's archive is local only. See README for Firebase setup.";
+      el.style.color = "#6b7688";
+    }
+  }
+
+  /* ---------------- Payee suggestions ---------------- */
+  function loadKnownPayees(){
+    if(FIREBASE_MODE) return syncData.knownPayees.slice();
+    try{ return JSON.parse(localStorage.getItem("adcbKnownPayees") || "[]"); }
+    catch(e){ return []; }
+  }
+  function saveKnownPayees(list){
+    if(FIREBASE_MODE){
+      syncData.knownPayees = list;
+      pushSyncData();
+      return;
+    }
+    try{ localStorage.setItem("adcbKnownPayees", JSON.stringify(list)); }
+    catch(e){ /* storage unavailable, skip silently */ }
+  }
+  function rememberPayee(name){
+    name = (name || "").trim();
+    if(!name) return;
+    const list = loadKnownPayees();
+    const existingIdx = list.findIndex(p => p.toLowerCase() === name.toLowerCase());
+    if(existingIdx !== -1) list.splice(existingIdx, 1); // move to front (most recent)
+    list.unshift(name);
+    saveKnownPayees(list.slice(0, 50)); // cap the list
+    renderPayeeSuggestions();
+  }
+  function renderPayeeSuggestions(){
+    const list = loadKnownPayees();
+    const datalist = $("payeeSuggestions");
+    datalist.innerHTML = list.map(name => '<option value="' + name.replace(/"/g,'&quot;') + '"></option>').join("");
+  }
+
+  /* ---------------- Archive ---------------- */
+  function loadArchive(){
+    if(FIREBASE_MODE) return syncData.archive.slice();
+    try{
+      return JSON.parse(localStorage.getItem("adcbChequeArchive") || "[]");
+    }catch(e){ return []; }
+  }
+  function saveArchive(list){
+    if(FIREBASE_MODE){
+      syncData.archive = list;
+      pushSyncData();
+      return;
+    }
+    try{ localStorage.setItem("adcbChequeArchive", JSON.stringify(list)); }
+    catch(e){ /* storage unavailable, skip silently */ }
+  }
+  function logCurrentCheque(){
+    const payee = $("payee").value.trim();
+    const amountVal = parseFloat($("amount").value);
+    const dateVal = $("dateInput").value;
+    const chequeNo = $("chequeNo").value.trim();
+    const invoiceNo = $("invoiceNo").value.trim();
+    if(!payee && isNaN(amountVal)) return; // nothing meaningful to log
+    const list = loadArchive();
+    list.push({
+      id: Date.now() + "-" + Math.random().toString(36).slice(2,7),
+      date: dateVal || "",
+      chequeNo: chequeNo || "",
+      payee: payee || "",
+      amount: isNaN(amountVal) ? 0 : amountVal,
+      invoiceNo: invoiceNo || ""
+    });
+    list.sort((a,b) => (a.date || "").localeCompare(b.date || ""));
+    saveArchive(list);
+  }
+  function fmtMoney(n){
+    return Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  function fmtDateDisplay(iso){
+    if(!iso) return "";
+    const [y,m,d] = iso.split("-");
+    return d + "/" + m + "/" + y;
+  }
+  function renderArchiveTable(){
+    const list = loadArchive();
+    const body = $("archiveTableBody");
+    body.innerHTML = "";
+    let total = 0;
+    list.forEach(rec => {
+      total += Number(rec.amount) || 0;
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + fmtDateDisplay(rec.date) + "</td>" +
+        "<td>" + (rec.chequeNo || "") + "</td>" +
+        "<td>" + (rec.payee || "") + "</td>" +
+        "<td>" + (rec.invoiceNo || "") + "</td>" +
+        "<td class=\"amount-cell\">" + fmtMoney(rec.amount) + "</td>" +
+        "<td><button class=\"delete-row\" data-id=\"" + rec.id + "\">Remove</button></td>";
+      body.appendChild(tr);
+    });
+    $("archiveTotal").textContent = "AED " + fmtMoney(total);
+    $("archiveEmptyHint").style.display = list.length === 0 ? "block" : "none";
+    $("archiveTable").style.display = list.length === 0 ? "none" : "table";
+
+    body.querySelectorAll(".delete-row").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-id");
+        const updated = loadArchive().filter(r => r.id !== id);
+        saveArchive(updated);
+        renderArchiveTable();
+      });
+    });
+  }
+  function buildStatementHtml(){
+    const list = loadArchive();
+    let total = 0;
+    const rows = list.map(rec => {
+      total += Number(rec.amount) || 0;
+      return "<tr><td>" + fmtDateDisplay(rec.date) + "</td><td>" + (rec.chequeNo||"") +
+        "</td><td>" + (rec.payee||"") + "</td><td>" + (rec.invoiceNo||"") + "</td><td>AED " + fmtMoney(rec.amount) + "</td></tr>";
+    }).join("");
+    const today = new Date().toLocaleDateString('en-GB');
+    return "<h2>ADCB Cheque Issuance Statement</h2>" +
+      "<div class=\"stmt-meta\">Generated on " + today + " &nbsp;|&nbsp; " + list.length + " cheque(s)</div>" +
+      "<table><thead><tr><th>Date</th><th>Cheque No.</th><th>Payee</th><th>Invoice No.</th><th>Amount</th></tr></thead>" +
+      "<tbody>" + rows + "</tbody>" +
+      "<tfoot><tr><td colspan=\"4\">Total</td><td>AED " + fmtMoney(total) + "</td></tr></tfoot></table>";
+  }
+  function exportCsv(){
+    const list = loadArchive();
+    let csv = "Date,Cheque No,Payee,Invoice No,Amount (AED)\n";
+    list.forEach(rec => {
+      const safePayee = '"' + (rec.payee || "").replace(/"/g,'""') + '"';
+      const safeInvoice = '"' + (rec.invoiceNo || "").replace(/"/g,'""') + '"';
+      csv += [fmtDateDisplay(rec.date), rec.chequeNo || "", safePayee, safeInvoice, Number(rec.amount).toFixed(2)].join(",") + "\n";
+    });
+    const blob = new Blob([csv], {type: "text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "adcb-cheque-statement.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportJson(){
+    const payload = {
+      archive: loadArchive(),
+      knownPayees: loadKnownPayees(),
+      exportedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "adcb-cheque-backup.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function recordKey(rec){
+    return [rec.date, rec.chequeNo, rec.payee, Number(rec.amount).toFixed(2)].join("|").toLowerCase();
+  }
+
+  function importJson(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      let data;
+      try{ data = JSON.parse(reader.result); }
+      catch(e){ alert("That file doesn't look like a valid backup (.json)."); return; }
+
+      const incomingArchive = Array.isArray(data.archive) ? data.archive : [];
+      const incomingPayees = Array.isArray(data.knownPayees) ? data.knownPayees : [];
+
+      // Merge archive, de-duplicating by date+chequeNo+payee+amount
+      const current = loadArchive();
+      const seen = new Set(current.map(recordKey));
+      let added = 0;
+      incomingArchive.forEach(rec => {
+        const key = recordKey(rec);
+        if(!seen.has(key)){
+          seen.add(key);
+          current.push({
+            id: rec.id || (Date.now() + "-" + Math.random().toString(36).slice(2,7)),
+            date: rec.date || "",
+            chequeNo: rec.chequeNo || "",
+            payee: rec.payee || "",
+            amount: Number(rec.amount) || 0,
+            invoiceNo: rec.invoiceNo || ""
+          });
+          added++;
+        }
+      });
+      current.sort((a,b) => (a.date || "").localeCompare(b.date || ""));
+      saveArchive(current);
+
+      // Merge payee suggestions
+      const currentPayees = loadKnownPayees();
+      incomingPayees.forEach(name => {
+        if(!currentPayees.some(p => p.toLowerCase() === String(name).toLowerCase())){
+          currentPayees.push(name);
+        }
+      });
+      saveKnownPayees(currentPayees.slice(0, 50));
+      renderPayeeSuggestions();
+
+      renderArchiveTable();
+      alert(added + " cheque record(s) merged in from the backup.");
+    };
+    reader.readAsText(file);
+  }
+
+  $("viewArchiveBtn").addEventListener("click", () => {
+    renderArchiveTable();
+    $("archiveSection").style.display = "block";
+    $("archiveSection").scrollIntoView({behavior:"smooth", block:"start"});
+  });
+  $("closeArchiveBtn").addEventListener("click", () => { $("archiveSection").style.display = "none"; });
+  $("clearArchiveBtn").addEventListener("click", () => {
+    if(confirm("Clear all archived cheques? This cannot be undone.")){
+      saveArchive([]);
+      renderArchiveTable();
+    }
+  });
+  $("exportCsvBtn").addEventListener("click", exportCsv);
+  $("exportJsonBtn").addEventListener("click", exportJson);
+  $("importJsonBtn").addEventListener("click", () => $("importJsonFile").click());
+  $("importJsonFile").addEventListener("change", (e) => {
+    if(e.target.files && e.target.files[0]) importJson(e.target.files[0]);
+    e.target.value = ""; // allow re-importing the same file later
+  });
+  $("printStatementBtn").addEventListener("click", () => {
+    $("statementPrintout").innerHTML = buildStatementHtml();
+    document.body.classList.add("printing-statement");
+    window.print();
+  });
+  window.addEventListener("afterprint", () => {
+    document.body.classList.remove("printing-statement");
+  });
+
+  $("printBtn").addEventListener("click", () => {
+    rememberPayee($("payee").value);
+    if($("logToArchive").checked) logCurrentCheque();
+    window.print();
+  });
+  $("payee").addEventListener("blur", () => rememberPayee($("payee").value));
+  $("resetBtn").addEventListener("click", () => {
+    fieldIds.forEach(id => $(id).value = DEFAULTS[id]);
+    saveCalibration();
+    render();
+  });
+
+  /* ---------------- Lock screen ---------------- */
+  const APP_PASSCODE = "1122";
+  function tryUnlock(){
+    const entered = $("lockPasscode").value.trim();
+    if(entered === APP_PASSCODE){
+      sessionStorage.setItem("adcbUnlocked", "true");
+      $("lockScreen").style.display = "none";
+    } else {
+      $("lockError").style.display = "block";
+      $("lockPasscode").value = "";
+      $("lockPasscode").focus();
+    }
+  }
+  if(sessionStorage.getItem("adcbUnlocked") === "true"){
+    $("lockScreen").style.display = "none";
+  } else {
+    $("lockPasscode").focus();
+  }
+  $("unlockBtn").addEventListener("click", tryUnlock);
+  $("lockPasscode").addEventListener("keydown", (e) => {
+    if(e.key === "Enter") tryUnlock();
+  });
+
+  loadSaved();
+  initFirebaseSync();
+  $("connectSyncBtn").addEventListener("click", () => connectSync($("syncCode").value));
+  renderPayeeSuggestions();
+  $("dateInput").value = new Date().toISOString().split("T")[0];
+  render();
+</script>
+
+
+</body>
+</html>
