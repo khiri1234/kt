@@ -1,0 +1,19 @@
+{
+  "name": "ADCB Cheque Printer",
+  "short_name": "Cheque Printer",
+  "description": "Feed your ADCB cheque into the printer and print just the payee, amount, and date.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef1f6",
+  "theme_color": "#1a2b4a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
