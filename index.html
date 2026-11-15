@@ -1034,9 +1034,28 @@
     document.body.classList.remove("printing-statement");
   });
 
+  let printingCheque = false;
+  function clearChequeFields(){
+    $("chequeNo").value = "";
+    $("payee").value = "";
+    $("amount").value = "";
+    $("invoiceNo").value = "";
+    $("dateInput").value = new Date().toISOString().split("T")[0];
+    hidePayeeDropdown();
+    render();
+    $("chequeNo").focus();
+  }
+  window.addEventListener("afterprint", () => {
+    if(printingCheque){
+      printingCheque = false;
+      clearChequeFields();
+    }
+  });
+
   $("printBtn").addEventListener("click", () => {
     rememberPayee($("payee").value);
     if($("logToArchive").checked) logCurrentCheque();
+    printingCheque = true;
     window.print();
   });
   $("payee").addEventListener("blur", () => rememberPayee($("payee").value));
